@@ -1,0 +1,7 @@
+eventregistry==6.4.2
+nltk==3.2.2
+numpy==1.12.0
+pandas==0.19.2
+scipy==0.18.1
+scikit_learn==0.18.1
+duka==0.2.0

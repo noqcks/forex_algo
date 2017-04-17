@@ -1,15 +1,19 @@
 import pandas as pd
-import numpy as np
-import re
-import scipy
-
 import nltk
+import scipy
 from nltk.corpus import stopwords
 from nltk.corpus import wordnet as wn
 from nltk.corpus import sentiwordnet as swn
-
+import re
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn import metrics
+import pickle
+
+
+############################################
+### 4. CLEAN AND TRANSFORM HEADLINE TEXT ###
+############################################
+
+##################################################################
 
 ### STEPS ###
 # 1. tokenize text
@@ -23,14 +27,20 @@ from sklearn import metrics
 # 9. store tfidf feature vector
 # 10. store tfidf*sumscore vector
 
-news_df = pd.read_csv('news/MarketWatch-Combined_pn.csv')
+##################################################################
 
-### 1. TOKENIZE TEXT ###
+news_df = pd.read_csv('input/headlines_pn.csv')
+
+###########################
+### 1. TOKENIZE TEXT ######
 ### 2. REMOVE STOPWORDS ###
-"""
-This is where we remove punctuation and whitespace and also stop words
-that have low informational content.
-"""
+###########################
+
+##
+# This is where we remove punctuation and whitespace and also stop words
+#that have low informational content.
+##
+
 # loading stopwords
 stop = set(stopwords.words('english'))
 
@@ -46,11 +56,12 @@ def normalize_text(headline):
     return str
 
 news_df['headline'] = news_df['headline'].apply(normalize_text)
-# print(news_df['headline'])
 
-### 3. DISCARD IF NOT IN WORDNET ###
-### 4. DISCARED IF HYPERNYM NOT AVAILABLE ###
+##################################################
+### 3. DISCARD IF NOT IN WORDNET #################
+### 4. DISCARED IF HYPERNYM NOT AVAILABLE ########
 ### 5. CREATE FEATURE VECTOR OF WORD HYPERNYMS ###
+##################################################
 
 # replace words with hypernyms
 def hypernym_replace(headline):
@@ -65,19 +76,11 @@ def hypernym_replace(headline):
     return array
 
 news_df['headline'] = news_df['headline'].apply(hypernym_replace)
-# print(news_df['headline'])
 
+##################################################
 ### 5. CREATE FEATURE VECTOR OF WORD HYPERNYMS ###
-### 6. ASSIGN TFIDF WEIGHTS TO FEATURE VECTOR ###
-vectorizer = TfidfVectorizer()
-news_df['tfidf'] = vectorizer.fit_transform(news_df['headline'])
-print(news_df['headline'][0])
-
-np.set_printoptions(threshold=np.inf)
-
-### 7. CALCULATE SENTIMENT SUMSCORES ON WORDS ###
-# create a one-hot encoding feature vector of word sentiments
-# sentiment sum score --> sentiment_sum = pos_sentiment_score + neg_sentiment_score
+### 6. ASSIGN TFIDF WEIGHTS TO FEATURE VECTOR ####
+##################################################
 
 def remove_periods(df):
     arr = []
@@ -86,12 +89,20 @@ def remove_periods(df):
         arr.append(the_real)
     return " ".join(arr)
 
-test_df = news_df['headline'].apply(remove_periods)
+tfidf = news_df['headline'].apply(remove_periods)
 vectorizer = TfidfVectorizer()
-news = vectorizer.fit_transform(test_df)
+headline_tfidf = vectorizer.fit_transform(tfidf)
+
+#################################################
+### 7. CALCULATE SENTIMENT SUMSCORES ON WORDS ###
+#################################################
+
+##
+# sentiment_sum_score = pos_sentiment_score + neg_sentiment_score
+##
 
 # tfidf * sentiment_sum_score
-cx = scipy.sparse.coo_matrix(news)
+cx = scipy.sparse.coo_matrix(headline_tfidf)
 for i,j,v in zip(cx.row, cx.col, cx.data):
     # find original hypernyms
     regex=re.compile("%s.*" % vectorizer.get_feature_names()[j])
@@ -103,70 +114,28 @@ for i,j,v in zip(cx.row, cx.col, cx.data):
         sum_sentiment = breakdown.pos_score() + breakdown.neg_score()
     except:
         sum_sentiment = 0
-    tfidf_score = news[i,j]
+    tfidf_score = headline_tfidf[i,j]
 
     # update original csr_matrix
-    news[i,j] = tfidf_score  * sum_sentiment
-
-# this is the tfidf * sentiment_sum_score matrix
-# print(news)
+    headline_tfidf[i,j] = tfidf_score  * sum_sentiment
 
 # drop all zero values from the csr matrix
-news = news[news.getnnz(1)>0]
+headline_tfidf = headline_tfidf[headline_tfidf.getnnz(1)>0]
 
 
 # drop all rows in original df if they don't exist in the tfidf*senti matrix
-
-print(news_df.shape)
 del_array = []
-
 for index, row in news_df.iterrows():
     try:
-        news[index]
+        headline_tfidf[index]
     except:
         del_array.append(index)
 
 news_df = news_df.drop(news_df.index[del_array])
 
-print(news_df.shape)
+headline_tfidf = headline_tfidf[pd.notnull(news_df['label'])]
 
-# print(news_df.shape)
-# print(news_df)
-# print(news)
+with open('input/headline_tfidf.dat', 'wb') as outfile:
+    pickle.dump(headline_tfidf, outfile, pickle.HIGHEST_PROTOCOL)
 
-news_df['senti_tfidf'] = news
-news_df['label'].isnull().sum()
-
-news = news[pd.notnull(news_df['label'])]
-
-# split data into test and train
-from sklearn.model_selection import train_test_split
-from sklearn import svm
-import datetime as dt
-
-X_train, X_test, y_train, y_test = train_test_split(news, news_df['label'], test_size=0.15, random_state=42)
-
-# train our model
-param_C = 5
-param_gamma = 0.05
-classifier = svm.SVC(C=param_C,gamma=param_gamma)
-
-start_time = dt.datetime.now()
-print('Start learning at {}'.format(str(start_time)))
-classifier.fit(X_train, y_train)
-end_time = dt.datetime.now()
-print('Stop learning {}'.format(str(end_time)))
-elapsed_time= end_time - start_time
-print('Elapsed learning {}'.format(str(elapsed_time)))
-
-# get some accuracy
-expected = y_test
-predicted = classifier.predict(X_test)
-
-print("Classification report for classifier %s:\n%s\n"
-      % (classifier, metrics.classification_report(expected, predicted)))
-
-cm = metrics.confusion_matrix(expected, predicted)
-print("Confusion matrix:\n%s" % cm)
-
-print("Accuracy={}".format(metrics.accuracy_score(expected, predicted)))
+news_df.to_csv('input/headline_pn_clean.csv',index=False)
