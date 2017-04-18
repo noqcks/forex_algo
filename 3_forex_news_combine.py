@@ -42,19 +42,30 @@ strs = ["" for x in range(sLength)]
 news_df = news_df.assign(label=Series(strs).values)
 
 for index, row in forex_df.iterrows():
-    # calculate positive or negative price change over 2 hours
-    p_or_n = row['Close Bid'] - forex_df.iloc[index-1]['Close Bid']
+    dt = datetime.strptime(row['datetime'], '%Y-%m-%d %H:%M:%S')
+    prev_row_dt = dt - timedelta(hours=2)
+    prev_row_dt_string = prev_row_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    test_df = forex_df[forex_df.datetime == prev_row_dt_string]
+    if test_df.empty:
+        # random value to use later
+        p_or_n = 1000000
+    else:
+        p_or_n = row['Close Bid'] - test_df['Close Bid'].iloc[0]
 
     # time offset for news
-    dt = datetime.strptime(row['datetime'], '%Y-%m-%d %H:%M:%S')
     news_dt = dt - timedelta(hours=1)
 
+    # set empty label when no data for value change
+    if p_or_n == 1000000:
+        news_df.set_value(news_dt, 'label', '')
     # set P when change over last two hours > 0
     if p_or_n > 0:
         news_df.set_value(news_dt, 'label', 'P')
     # set N when change over last two hours <= 0
     elif p_or_n <= 0:
         news_df.set_value(news_dt, 'label', 'N')
+
 
 # drop first value because the P/N will be inaccurate
 news_df.drop(news_df.index[[0]], inplace=True)

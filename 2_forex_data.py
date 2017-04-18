@@ -21,8 +21,12 @@ file_name = "{0}-{1}-{2}".format(currency_pair, s_date.replace("-", "_"), e_date
 # combine into 2H intervals
 ##
 
+print("Getting forex data...")
+
 # get forex ticker data from dukascopy
 subprocess.call("./download_forex_data.sh {0} {1} {2}".format(currency_pair, s_date, e_date), shell=True)
+
+print("Transforming forex data...")
 
 # read forex ticker data csv
 forex_df = pd.read_csv('input/{0}.csv'.format(file_name))
@@ -49,3 +53,5 @@ forex_df.reset_index(level=0, inplace=True)
 forex_df = forex_df.dropna(how='any')
 
 forex_df.to_csv('input/{0}_grouped.csv'.format(file_name), index=False)
+
+print("Finished.")

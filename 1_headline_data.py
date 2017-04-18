@@ -21,10 +21,16 @@ er = EventRegistry(apiKey = config['DEFAULT']['er_api_key'])
 # headline dates to get
 datelist = pd.bdate_range(config['DEFAULT']['start_date'], config['DEFAULT']['end_date']).tolist()
 
+# TODO: open existing new headline data
+
 headlines = []
+
+print("Getting headline data...")
+print("Date:")
 
 # get headline data
 for date in datelist:
+  print(date)
   datetime = pd.to_datetime(date)
 
   q = QueryArticlesIter(
@@ -45,4 +51,4 @@ df = pd.DataFrame(headlines, columns=['headline', 'datetime'])
 # save DataFrame as csv
 df.to_csv('input/headlines.csv', index=False)
 
-
+print("Finished.")

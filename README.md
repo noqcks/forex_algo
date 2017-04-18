@@ -27,6 +27,10 @@ sentiment_sum_score = word_negative_sentiment + word_positive_sentiment
 5. this is where we apply a machine learning classification model (SVM) that will
 try predict price movements from the headline vectors.
 
+These are my results on a very small amount of data
+
+![](algo_results.png)
+
 ## Config
 
 You can alter config settings in config.ini
